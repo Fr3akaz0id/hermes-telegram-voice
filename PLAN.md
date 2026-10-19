@@ -51,6 +51,9 @@ Live if a Gemini key is present, else fall back to the pipeline, with the fallba
 
 ### Phase 0 — Prereqs (you)
 - [ ] Spare Telegram number + account, `api_id`/`api_hash` from my.telegram.org. Not your main account — auto-answering user accounts can get flagged.
+  - **Number sourcing:** a real prepaid SIM (physical or eSIM) is the reliable path. Telegram aggressively flags accounts registered on SMS-receiving "virtual number" services (sms-activate, 5sim, textverified, etc.) — those accounts tend to die within days or hours. A second real SIM/eSIM under your name, or a family member's unused prepaid number, is what survives.
+  - **On the account:** register once in the official app, set it up enough to pass first contact (username, one message to your own main account), keep it call-only afterwards — no groups, no mass messaging.
+  - **api_id/api_hash:** my.telegram.org → "api development tools" while logged into the *spare* account. Session file is what we store, not the password.
 - [ ] Voice language (de, en, or both — affects TTS voice and STT language hint).
 - **Exit:** creds in the sidecar's env, nothing built yet.
 

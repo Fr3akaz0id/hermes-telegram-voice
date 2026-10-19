@@ -15,8 +15,10 @@ Live voice calls with [Hermes](https://github.com/NousResearch/hermes-agent) ove
   the tool says so and Hermes falls back to another channel.
 - **Summary afterwards.** When a call ends, Hermes digests the transcript and sends you a short
   summary in Telegram.
-- **Local speech option.** Besides Gemini Live (cloud speech-to-speech), the sidecar runs a fully
-  local pipeline: VAD → Whisper STT → Hermes → Piper TTS, no cloud in the audio path.
+- **Shared speech stack.** Besides Gemini Live (cloud speech-to-speech), the sidecar can run a
+  pipeline mode that reuses exactly what Hermes has configured in `config.yaml` (`stt:`/`tts:` —
+  on our setup a LAN-hosted Parakeet + Qwen3-TTS endpoint) — no second speech stack, no bundled
+  whisper/piper.
 
 Unlike WhatsApp's linked-device model, Telegram voice calls require a **real user account** — bots
 cannot make or receive calls. The bot runs on a spare Telegram account you log in once via SMS.
@@ -27,9 +29,9 @@ cannot make or receive calls. The bot runs on a spare Telegram account you log i
  your phone ──Telegram call──▶ bot account ──▶ hermes-tg-voice sidecar (Python: Telethon + ntgcalls)
                                                  │  call audio (48 kHz PCM, WebRTC/SRTP, resampled)
                                                  ▼
-                                          SpeechBus — live or local
+                                          SpeechBus — live | hermes-configured
                                             live: Gemini Live (speech-to-speech)
-                                            local: VAD → Whisper STT → Hermes → Piper TTS
+                                            hermes: VAD → Hermes-configured STT → Hermes turn → Hermes TTS
                                                  │  ask_hermes(...) tool calls
                                                  ▼
                                             Hermes API server (/v1/runs)

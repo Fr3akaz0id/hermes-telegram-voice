@@ -13,8 +13,8 @@ Fork of [hermes-whatsapp-voice](https://github.com/ashwanthbalakrishnan5/hermes-
         │                    │                             │
         ▼                    ▼                             ▼
    Hermes API server   mode: live                  mode: pipeline
-   (/v1/runs via       Gemini Live STT↔TTS        VAD → local STT → Hermes turn
-   ask_hermes)                                    → local TTS → PCM back into call
+   (/v1/runs via       Gemini Live STT↔TTS        VAD → Hermes STT → Hermes turn
+   ask_hermes)                                    → Hermes TTS → PCM back into call
 ```
 
 The Hermes plugin layer, the sidecar HTTP contract (loopback + token), `ask_hermes`, the persona briefing, post-call summary, and the `call_owner`/`call_status` tools all carry over unchanged. Only the sidecar internals change, and they grow the mode switch.
@@ -26,20 +26,26 @@ The Hermes plugin layer, the sidecar HTTP contract (loopback + token), `ask_herm
 |---|---|---|
 | STT+TTS | Gemini Live (`generativelanguage.googleapis.com`) | Speech-to-speech, native barge-in/interruption, lowest latency. Needs `GOOGLE_API_KEY`; ~$0.005/min in, $0.018/min out. Not local. |
 
-### mode: pipeline (fully local, no cloud in the audio path)
-| Role | Recommended | Alternatives | Notes for this laptop |
-|---|---|---|---|
-| VAD | silero-vad (ONNX) | webrtcvad | Tiny, CPU-fine; drives end-of-utterance and barge-in. |
-| STT | faster-whisper `small` (int8) | Vosk (lower latency, weaker quality); whisper.cpp | ~real-time on this CPU. German + multilingual — whisper small is solid for both. `large-v3` too slow for a call loop here. |
-| LLM | your Hermes, via `/v1/runs` | — | The pipeline mode's "brain" **is** Hermes — same tool as live mode's `ask_hermes`. No extra local model needed. |
-| TTS | piper | kokoro (better quality, heavier), xtts-v2 (voice cloning — GPU-only, out of scope here) | Piper: real-time on CPU, German voices (`de_DE-thorsten*`, `de_DE-katia*`), streaming output = lower latency. |
+### mode: pipeline — reuse Hermes's own STT/TTS (preferred over bundled models)
+| Role | Engine | Notes |
+|---|---|---|
+| VAD | silero-vad (ONNX) | Tiny, CPU-fine; drives end-of-utterance and barge-in. |
+| STT | **whatever Hermes has configured** (`config.yaml` → `stt:`) | This machine: OpenAI-compatible endpoint (`http://172.16.16.88:8895/v1`, model `parakeet`). The sidecar POSTs WAV/OGG to `/v1/audio/transcriptions` like any Hermes client would. Switching providers = edit Hermes config, nothing here. |
+| LLM | your Hermes, via `/v1/runs` | The pipeline's "brain" **is** Hermes — same tool as live mode's `ask_hermes`. No separate local model. |
+| TTS | **whatever Hermes has configured** (`config.yaml` → `tts:`) | This machine: OpenAI-compatible endpoint, model `qwen3-tts`, voice `vivian`. `/v1/audio/speech`, streamed chunks into the call. |
 
-Nothing local is installed on the laptop today (no piper, no whisper bindings, no torch) — Phase 4 includes the install. Design target: **CPU-only**; the 940M is Maxwell/EOL and deliberately unused.
+**Policy: we use what Hermes has configured in `config.yaml` — this is preferred over bundling
+whisper/piper.** The sidecar reads `stt:`/`tts:` from Hermes config at startup (same resolution as
+Hermes itself: base_url, model, voice, api_key via `get_secret`), so the voice bridge and the rest
+of Hermes (voice notes, voice-mode messenger replies) share one speech stack. Bundled
+whisper.cpp/piper remain only as an explicit last-resort `stt.source=whisper_local` fallback for
+machines with no speech server configured — never the default, and nothing gets installed by
+default.
 
 ### mode: hybrid (auto)
 Live if a Gemini key is present, else fall back to the pipeline, with the fallback stated in the post-call summary. This means the bridge never dies on a missing key or an offline call.
 
-**Latency budget (pipeline, end-of-utterance → first audio out):** VAD tail (~300 ms) + whisper-small on a ≤3 s utterance (~0.4–1 s) + Hermes turn (variable, dominant) + piper first chunk (~150 ms). Target: ≤2.5 s for a canned/quick answer. Live mode: sub-1 s. This difference is the honest trade: local = private and free, live = natural interruptions.
+**Latency budget (pipeline, end-of-utterance → first audio out):** VAD tail (~300 ms) + STT round-trip to the configured server (typically sub-second for a ≤3 s utterance) + Hermes turn (variable, dominant) + TTS first chunk (~300 ms on the LAN server). Target: ≤2.5 s for a canned/quick answer. Live mode: sub-1 s. This difference is the honest trade: pipeline = one shared stack with Hermes and no Gemini key, live = natural interruptions.
 
 ## Phases
 
@@ -66,24 +72,23 @@ Live if a Gemini key is present, else fall back to the pipeline, with the fallba
 - [ ] Persona briefing, post-call summary run, memory write-back — port as-is.
 - **Exit:** full original feature parity, minus outbound calls.
 
-### Phase 4 — mode: pipeline (local STT/TTS)
-- [ ] Install: `piper-tts` + a German voice model, `faster-whisper` (small, int8), `silero-vad` (pip; onnxruntime CPU).
-- [ ] `SpeechEngine` interface: `feed(pcm) -> text?`, `synthesize(text) -> pcm stream`. Providers: `gemini_live`, `local_whisper_piper`.
-- [ ] VAD segmenter: barge-in = cut playback, flush, restart; utterance-complete = run STT → Hermes turn → TTS, streamed into the call.
+### Phase 4 — mode: pipeline (reuse Hermes-configured STT/TTS)
+- [ ] `SpeechEngine` interface: `feed(pcm) -> text?`, `synthesize(text) -> pcm stream`. Providers: `gemini_live` (live mode), `hermes_speech` (reads `stt:`/`tts:` from Hermes config.yaml — base_url/model/voice + api key via `get_secret`).
+- [ ] `hermes_speech` implementation: WAV-in → `POST /v1/audio/transcriptions` (STT), `POST /v1/audio/speech` with stream → decode → 48 kHz PCM out; language hint passed when `auto` isn't wanted.
+- [ ] Fallback: optional `whisper_local` (whisper.cpp, built from source on demand only when no speech server is configured and the user explicitly opts in) — never installed by default.
+- [ ] VAD segmenter (silero): barge-in = cut playback, flush, restart; utterance-complete = STT → Hermes turn → TTS streamed into the call.
 - [ ] Config keys:
   ```
-  voice.mode: live | pipeline | hybrid
-  live.model / live.voice            (unchanged from original)
-  stt.engine: faster_whisper | vosk
-  stt.model: small
+  voice.mode: live | pipeline | hybrid          (default hybrid)
+  live.model / live.voice                        (unchanged from original)
+  stt.source: hermes_config | whisper_local
   stt.language: de | en | auto
-  tts.engine: piper | kokoro
-  tts.voice: de_DE-thorsten-low
+  tts.source: hermes_config
   vad.threshold: 0.5
   barge_in: true
   ```
-- [ ] Mode selector surfaces in the dashboard tab + plugin settings; `hermes telegram-voice doctor` reports which engines loaded.
-- **Exit:** local conversation round-trip on a real call, ≤2.5 s response, interruptions work.
+- [ ] Mode + speech-source selector in the dashboard tab + plugin settings; `hermes telegram-voice doctor` reports: which mode, which STT/TTS endpoints were picked up from Hermes config, and a 1 s test round-trip against each.
+- [ ] **Exit:** conversation round-trip on a real call using only what Hermes configures — change `stt.openai.model` in config.yaml and the call follows without touching the plugin.
 
 ### Phase 5 — Outbound + escalation
 - [ ] `telegram_call_owner(reason, details?)` via `phone.requestCall` (GramJS exposes `initiate_call`; validate early — the proven bridge only did inbound).
@@ -108,5 +113,5 @@ Live if a Gemini key is present, else fall back to the pipeline, with the fallba
 
 ## Open decisions
 1. Fork `hermes-whatsapp-voice` directly (keeps git history + MIT attribution, PR-able upstream for the mode-switch) **vs.** clean repo borrowing its architecture. → Fork recommended.
-2. Voice/persona language: German, English, or auto-detect (whisper does it free; TTS voice choice follows).
+2. Voice/persona language: German, English, or auto-detect (the STT language hint; the TTS voice comes from whatever Hermes configures).
 3. Default mode: `hybrid` (recommended) or `live`.

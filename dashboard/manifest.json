@@ -1,10 +1,10 @@
 {
-  "name": "hermes-whatsapp-voice",
-  "label": "WhatsApp Voice",
-  "description": "Pair, configure and test WhatsApp voice calls with Hermes",
+  "name": "hermes-telegram-voice",
+  "label": "Telegram Voice",
+  "description": "Pair, configure and test Telegram voice calls with Hermes",
   "icon": "MessageSquare",
   "tab": {
-    "path": "/whatsapp-voice",
+    "path": "/telegram-voice",
     "position": "end"
   },
   "entry": "dist/index.js",

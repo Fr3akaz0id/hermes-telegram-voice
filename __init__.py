@@ -1,4 +1,4 @@
-"""Hermes WhatsApp voice calls: live calls with Hermes through a linked-device sidecar."""
+"""Hermes Telegram voice calls: live calls with Hermes through a linked-device sidecar."""
 
 from __future__ import annotations
 
@@ -19,26 +19,26 @@ def register(ctx):
 
     call_owner, call_status = tools.make_handlers(ctx)
     ctx.register_tool(
-        name="whatsapp_call_owner",
-        toolset="whatsapp_voice",
+        name="telegram_call_owner",
+        toolset="telegram_voice",
         schema=tools.CALL_OWNER,
         handler=call_owner,
         check_fn=available,
         emoji="📞",
     )
     ctx.register_tool(
-        name="whatsapp_call_status",
-        toolset="whatsapp_voice",
+        name="telegram_call_status",
+        toolset="telegram_voice",
         schema=tools.CALL_STATUS,
         handler=call_status,
         check_fn=available,
         emoji="📞",
     )
-    # The setup runbook, loadable by the owner's agent as hermes-whatsapp-voice:setup.
+    # The setup runbook, loadable by the owner's agent as hermes-telegram-voice:setup.
     ctx.register_skill("setup", Path(__file__).parent / "skills" / "setup" / "SKILL.md")
     ctx.register_cli_command(
-        name="whatsapp-voice",
-        help="WhatsApp voice calls: install, pair and run the sidecar",
+        name="telegram-voice",
+        help="Telegram voice calls: install, pair and run the sidecar",
         setup_fn=cli.setup_parser,
         handler_fn=cli.make_handler(ctx),
     )

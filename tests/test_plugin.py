@@ -25,21 +25,21 @@ def _call(ctx, name, args):
 def test_registers_declared_tools_and_cli(plugin):
     ctx = FakeCtx()
     plugin.register(ctx)
-    assert set(ctx.tools) == {"whatsapp_call_owner", "whatsapp_call_status"}
-    assert "whatsapp-voice" in ctx.cli
+    assert set(ctx.tools) == {"telegram_call_owner", "telegram_call_status"}
+    assert "telegram-voice" in ctx.cli
     assert "setup" in ctx.skills
     # Unconfigured: tools stay hidden from the model.
-    assert ctx.tools["whatsapp_call_owner"]["check_fn"]() is False
+    assert ctx.tools["telegram_call_owner"]["check_fn"]() is False
     # The call tool can only ever reach the owner.
-    assert set(ctx.tools["whatsapp_call_owner"]["schema"]["parameters"]["properties"]) == {"reason", "details"}
+    assert set(ctx.tools["telegram_call_owner"]["schema"]["parameters"]["properties"]) == {"reason", "details"}
 
 
 def test_answered_call(plugin, no_sleep):
     sidecar = FakeSidecar(["ringing", "ringing", "in_progress"])
     try:
         ctx = _setup(plugin, sidecar)
-        assert ctx.tools["whatsapp_call_owner"]["check_fn"]() is True
-        out = _call(ctx, "whatsapp_call_owner", {"reason": "Rent is due today", "details": "  $1200 "})
+        assert ctx.tools["telegram_call_owner"]["check_fn"]() is True
+        out = _call(ctx, "telegram_call_owner", {"reason": "Rent is due today", "details": "  $1200 "})
         assert out["status"] == "in_progress"
         assert "answered" in out["note"]
         assert sidecar.requests[0] == ("POST", "/calls", {"reason": "Rent is due today", "details": "$1200"})
@@ -51,7 +51,7 @@ def test_answered_call(plugin, no_sleep):
 def test_unanswered_call_suggests_fallback(plugin, no_sleep, status):
     sidecar = FakeSidecar(["ringing", status])
     try:
-        out = _call(_setup(plugin, sidecar), "whatsapp_call_owner", {"reason": "x"})
+        out = _call(_setup(plugin, sidecar), "telegram_call_owner", {"reason": "x"})
         assert out["status"] == status
         assert "another channel" in out["note"]
     finally:
@@ -63,14 +63,14 @@ def test_sidecar_down(plugin):
     ctx = _setup(plugin, sidecar)
     sidecar.close()
     sidecar.server.server_close()
-    out = _call(ctx, "whatsapp_call_owner", {"reason": "x"})
+    out = _call(ctx, "telegram_call_owner", {"reason": "x"})
     assert "not reachable" in out["error"]
 
 
 def test_reason_required(plugin):
     sidecar = FakeSidecar(["ringing"])
     try:
-        assert "error" in _call(_setup(plugin, sidecar), "whatsapp_call_owner", {"reason": "  "})
+        assert "error" in _call(_setup(plugin, sidecar), "telegram_call_owner", {"reason": "  "})
     finally:
         sidecar.close()
 
@@ -79,8 +79,8 @@ def test_call_status(plugin):
     sidecar = FakeSidecar(["completed"])
     try:
         ctx = _setup(plugin, sidecar)
-        assert _call(ctx, "whatsapp_call_status", {})["calls"][0]["id"] == "c1"
-        assert _call(ctx, "whatsapp_call_status", {"call_id": "c1"})["call"]["status"] == "completed"
+        assert _call(ctx, "telegram_call_status", {})["calls"][0]["id"] == "c1"
+        assert _call(ctx, "telegram_call_status", {"call_id": "c1"})["call"]["status"] == "completed"
     finally:
         sidecar.close()
 
@@ -90,7 +90,7 @@ def test_bad_token_is_reported(plugin):
     try:
         ctx = _setup(plugin, sidecar)
         (plugin.sidecar_client.data_dir() / "sidecar.token").write_text("wrong")
-        assert "401" in _call(ctx, "whatsapp_call_status", {})["error"]
+        assert "401" in _call(ctx, "telegram_call_status", {})["error"]
     finally:
         sidecar.close()
 
@@ -98,18 +98,18 @@ def test_bad_token_is_reported(plugin):
 def test_sidecar_env(plugin):
     ctx = FakeCtx(owner_number="+1 555 123 4567", answer_inbound=False, max_call_minutes=5)
     env = plugin.sidecar_client.sidecar_env(ctx)
-    assert env["HWV_OWNER"] == "+1 555 123 4567"
-    assert env["HWV_ANSWER_INBOUND"] == "false"
-    assert env["HWV_SEND_SUMMARY"] == "true"
-    assert env["HWV_MAX_DURATION"] == "5m"
-    assert env["HWV_RING_TIMEOUT"] == "45s"
-    assert env["HWV_LIVE_CONFIG"] == "{}"
-    assert env["HWV_LANGUAGES"] == ""
-    assert env["HWV_SILENCE_TIMEOUT"] == "180s"
+    assert env["HTV_OWNER"] == "+1 555 123 4567"
+    assert env["HTV_ANSWER_INBOUND"] == "false"
+    assert env["HTV_SEND_SUMMARY"] == "true"
+    assert env["HTV_MAX_DURATION"] == "5m"
+    assert env["HTV_RING_TIMEOUT"] == "45s"
+    assert env["HTV_LIVE_CONFIG"] == "{}"
+    assert env["HTV_LANGUAGES"] == ""
+    assert env["HTV_SILENCE_TIMEOUT"] == "180s"
     assert env["GEMINI_API_KEY"] == "gemini-test"
     assert env["HERMES_API_KEY"] == "hermes-test"
     # A token is minted once and reused.
-    assert env["HWV_TOKEN"] == plugin.sidecar_client.sidecar_env(ctx)["HWV_TOKEN"]
+    assert env["HTV_TOKEN"] == plugin.sidecar_client.sidecar_env(ctx)["HTV_TOKEN"]
     token_file = plugin.sidecar_client.data_dir() / "sidecar.token"
     assert oct(token_file.stat().st_mode & 0o777) == "0o600"
 
@@ -164,7 +164,7 @@ def test_dashboard_settings_reject_unknown_keys_and_wrong_types(plugin, monkeypa
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     spec = importlib.util.spec_from_file_location(
-        "hwv_dashboard_api", plugin.cli.PLUGIN_DIR / "dashboard" / "plugin_api.py"
+        "htv_dashboard_api", plugin.cli.PLUGIN_DIR / "dashboard" / "plugin_api.py"
     )
     api = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(api)
@@ -184,7 +184,7 @@ def test_dashboard_settings_reject_unknown_keys_and_wrong_types(plugin, monkeypa
     assert calls == [], "nothing is written when any value is rejected"
 
     api.save_settings({"voice": "Puck", "ring_timeout_seconds": 30, "answer_inbound": False, "live_config": {"a": {}}})
-    prefix = "plugins.entries.hermes-whatsapp-voice.settings."
+    prefix = "plugins.entries.hermes-telegram-voice.settings."
     assert calls == [
         [prefix + "voice", "Puck"],
         [prefix + "ring_timeout_seconds", "30"],

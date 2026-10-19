@@ -15,8 +15,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-PLUGIN_NAME = "hermes-whatsapp-voice"
+PLUGIN_NAME = "hermes-telegram-voice"
+# Legacy upstream (WhatsApp) sidecar binary; replaced by the Python/Telethon sidecar in Phase 2.
 BINARY_NAME = "hermes-wa-voice"
+# Release assets and pinned checksums still live in the upstream repo until this fork ships its own.
 REPO = "ashwanthbalakrishnan5/hermes-whatsapp-voice"
 PLUGIN_DIR = Path(__file__).resolve().parent
 
@@ -47,7 +49,7 @@ def data_dir() -> Path:
     from plugins.plugin_storage import plugin_data_dir
 
     path = plugin_data_dir(PLUGIN_NAME)
-    path.chmod(0o700)  # holds the WhatsApp session and the sidecar token
+    path.chmod(0o700)  # holds the Telegram session and the sidecar token
     return path
 
 
@@ -61,7 +63,7 @@ def token(create: bool = False) -> str:
     if path.exists():
         return path.read_text().strip()
     if not create:
-        raise SidecarError("sidecar has never been started (no token); run: hermes whatsapp-voice serve")
+        raise SidecarError("sidecar has never been started (no token); run: hermes telegram-voice serve")
     value = secrets.token_urlsafe(32)
     with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as f:
         f.write(value)
@@ -144,21 +146,21 @@ def sidecar_env(ctx) -> dict[str, str]:
 
     s = settings(ctx)
     env = {
-        "HWV_OWNER": str(s["owner_number"]),
-        "HWV_MODEL": str(s["voice_model"]),
-        "HWV_VOICE": str(s["voice"]),
-        "HWV_ASSISTANT_NAME": str(s["assistant_name"]),
-        "HWV_LANGUAGES": str(s["languages"]),
-        "HWV_VOICE_INSTRUCTIONS": str(s["voice_instructions"]),
-        "HWV_LIVE_CONFIG": json.dumps(s["live_config"] or {}),
-        "HWV_LISTEN": str(s["listen"]),
-        "HWV_RING_TIMEOUT": f"{int(s['ring_timeout_seconds'])}s",
-        "HWV_MAX_DURATION": f"{int(s['max_call_minutes'])}m",
-        "HWV_SILENCE_TIMEOUT": f"{int(s['silence_hangup_seconds'])}s",
-        "HWV_ANSWER_INBOUND": "true" if s["answer_inbound"] else "false",
-        "HWV_SEND_SUMMARY": "true" if s["send_summary"] else "false",
-        "HWV_DATA_DIR": str(data_dir()),
-        "HWV_TOKEN": token(create=True),
+        "HTV_OWNER": str(s["owner_number"]),
+        "HTV_MODEL": str(s["voice_model"]),
+        "HTV_VOICE": str(s["voice"]),
+        "HTV_ASSISTANT_NAME": str(s["assistant_name"]),
+        "HTV_LANGUAGES": str(s["languages"]),
+        "HTV_VOICE_INSTRUCTIONS": str(s["voice_instructions"]),
+        "HTV_LIVE_CONFIG": json.dumps(s["live_config"] or {}),
+        "HTV_LISTEN": str(s["listen"]),
+        "HTV_RING_TIMEOUT": f"{int(s['ring_timeout_seconds'])}s",
+        "HTV_MAX_DURATION": f"{int(s['max_call_minutes'])}m",
+        "HTV_SILENCE_TIMEOUT": f"{int(s['silence_hangup_seconds'])}s",
+        "HTV_ANSWER_INBOUND": "true" if s["answer_inbound"] else "false",
+        "HTV_SEND_SUMMARY": "true" if s["send_summary"] else "false",
+        "HTV_DATA_DIR": str(data_dir()),
+        "HTV_TOKEN": token(create=True),
         "HERMES_API_URL": str(s["hermes_api_url"]),
         "GEMINI_API_KEY": gemini_key(),
         "HERMES_API_KEY": get_secret("API_SERVER_KEY") or "",
@@ -193,7 +195,7 @@ class Client:
             raise SidecarError(f"sidecar returned {e.code}: {detail}") from e
         except (urllib.error.URLError, OSError) as e:
             raise SidecarError(
-                f"sidecar not reachable at {self.base} ({e}); is `hermes whatsapp-voice serve` running?"
+                f"sidecar not reachable at {self.base} ({e}); is `hermes telegram-voice serve` running?"
             ) from e
 
     def health(self) -> dict:

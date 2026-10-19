@@ -1,22 +1,22 @@
-name: hermes-whatsapp-voice
-label: WhatsApp Voice Calls
+name: hermes-telegram-voice
+label: Telegram Voice Calls
 kind: standalone
 version: 0.1.12
 manifest_version: 2
 api_version: 1
 description: >-
-  Live voice calls with Hermes over WhatsApp. Call your bot's number and talk to
-  Hermes, or let Hermes call you for things that matter. Uses a linked-device
-  sidecar and Gemini Live speech-to-speech.
-author: Ashwanth Balakrishnan
+  Live voice calls with Hermes over Telegram. Call your bot's number and talk to
+  Hermes, or let Hermes call you for things that matter. Uses a user-account
+  sidecar and Gemini Live speech-to-speech (or a local STT/TTS pipeline).
+author: Ashwanth Balakrishnan (upstream); Fr3akaz0id (Telegram port)
 license: MIT
-homepage: https://github.com/ashwanthbalakrishnan5/hermes-whatsapp-voice
-tags: [whatsapp, voice, calls, gemini-live]
+homepage: https://github.com/Fr3akaz0id/hermes-telegram-voice
+tags: [telegram, voice, calls, gemini-live]
 platforms: [linux, macos]
 requires_hermes: ">=0.21.5"
 provides_tools:
-  - whatsapp_call_owner
-  - whatsapp_call_status
+  - telegram_call_owner
+  - telegram_call_status
 # Gemini: reuses the key of Hermes's own Gemini provider (GOOGLE_API_KEY, else GEMINI_API_KEY).
 optional_env:
   - name: GOOGLE_API_KEY
@@ -31,7 +31,7 @@ config_schema:
     type: str
     default: ""
     required: true
-    label: "Your WhatsApp number"
+    label: "Your Telegram number"
     description: "International format, e.g. +15551234567. The only number called, and the only caller answered."
   voice_model:
     type: str
@@ -82,7 +82,7 @@ config_schema:
     type: bool
     default: true
     label: "Send call summary"
-    description: "Message a short WhatsApp summary after each call."
+    description: "Message a short Telegram summary after each call."
   live_config:
     type: dict
     default: {}

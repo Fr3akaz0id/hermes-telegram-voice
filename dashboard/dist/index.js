@@ -1,4 +1,4 @@
-// WhatsApp Voice tab for the Hermes dashboard. Plain IIFE, no build step: React, Button and Input
+// Telegram Voice tab for the Hermes dashboard. Plain IIFE, no build step: React, Button and Input
 // come from the dashboard SDK; layout comes from dist/style.css (hwv-* classes).
 (function () {
   "use strict";
@@ -8,7 +8,7 @@
   const { useState, useEffect, useCallback } = SDK.hooks;
   const { Button, Input } = SDK.components;
   const h = React.createElement;
-  const API = "/api/plugins/hermes-whatsapp-voice";
+  const API = "/api/plugins/hermes-telegram-voice";
 
   const get = (path) => SDK.fetchJSON(API + path);
   const post = (path, body) =>
@@ -38,10 +38,10 @@
     const s = status.sidecar;
     return [
       { key: "gemini", ok: status.gemini_key, label: "Gemini key", hint: "Add a Gemini API key to Hermes (Keys page, GOOGLE_API_KEY). The plugin reuses it." },
-      { key: "owner", ok: !!status.owner_number, label: "Your number", hint: "Set your WhatsApp number in Settings below." },
+      { key: "owner", ok: !!status.owner_number, label: "Your number", hint: "Set your Telegram number in Settings below." },
       { key: "hermes", ok: status.hermes_api_key, label: "Hermes API", hint: "Set API_SERVER_ENABLED=true and an API_SERVER_KEY (Keys page), then restart the gateway." },
-      { key: "linked", ok: !!(s && s.logged_in) || status.pairing === "linked", label: "WhatsApp linked", hint: "Link the bot's WhatsApp number once." },
-      { key: "sidecar", ok: !!s, label: "Sidecar", hint: "Not running. Restart it, or install the background service: hermes whatsapp-voice service." },
+      { key: "linked", ok: !!(s && s.logged_in) || status.pairing === "linked", label: "Telegram linked", hint: "Link the bot's Telegram number once." },
+      { key: "sidecar", ok: !!s, label: "Sidecar", hint: "Not running. Restart it, or install the background service: hermes telegram-voice service." },
       { key: "test", ok: status.tested, label: "Test call", hint: "Have the bot call your phone to check everything works end to end." },
     ];
   }
@@ -78,16 +78,16 @@
         ? h(
             "div",
             { className: "hwv-qr" },
-            svg ? h("img", { alt: "WhatsApp pairing QR code", src: "data:image/svg+xml;utf8," + encodeURIComponent(svg) }) : h("span", { className: "hwv-muted hwv-small" }, "Getting a code…"),
+            svg ? h("img", { alt: "pairing code", src: "data:image/svg+xml;utf8," + encodeURIComponent(svg) }) : h("span", { className: "hwv-muted hwv-small" }, "Getting a code…"),
             h(
               "div",
               null,
-              h("div", { className: "hwv-small" }, "On the bot's phone: WhatsApp › Linked devices › Link a device, then scan."),
+              h("div", { className: "hwv-small" }, "Follow the pairing prompt from `hermes telegram-voice pair` (SMS login)."),
               h("div", { className: "hwv-small hwv-muted", style: { margin: ".35rem 0 .75rem" } }, "The code refreshes on its own."),
               h(Button, { size: "sm", variant: "outline", onClick: () => post("/pair/stop").then(() => setState("idle")) }, "Cancel"),
             ),
           )
-        : h(Button, { size: "sm", onClick: start }, state === "failed" ? "Try again" : "Pair with WhatsApp"),
+        : h(Button, { size: "sm", onClick: start }, state === "failed" ? "Try again" : "Pair with Telegram"),
       error && h("div", { className: "hwv-error", style: { marginTop: ".5rem" } }, error),
     );
   }
@@ -361,5 +361,5 @@
     );
   }
 
-  window.__HERMES_PLUGINS__.register("hermes-whatsapp-voice", Page);
+  window.__HERMES_PLUGINS__.register("hermes-telegram-voice", Page);
 })();

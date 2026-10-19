@@ -1,4 +1,4 @@
-"""`hermes whatsapp-voice ...` subcommands: install, pair, serve, service, status, call."""
+"""`hermes telegram-voice ...` subcommands: install, pair, serve, service, status, call."""
 
 from __future__ import annotations
 
@@ -53,13 +53,13 @@ def _install(args) -> None:
     else:
         _download_release(dest)
     print(f"Installed {dest}")
-    print("Next: hermes whatsapp-voice pair")
+    print("Next: hermes telegram-voice pair")
 
 
 def _require_ready(ctx) -> Path:
     if not settings(ctx)["owner_number"]:
         raise SystemExit(
-            "Set your number first: hermes config set plugins.entries.hermes-whatsapp-voice.settings.owner_number +15551234567"
+            "Set your number first: hermes config set plugins.entries.hermes-telegram-voice.settings.owner_number +15551234567"
         )
     if not gemini_key():
         raise SystemExit(
@@ -76,13 +76,19 @@ def _require_ready(ctx) -> Path:
 
 
 def _pair(ctx, phone: str | None) -> None:
-    exe = _require_ready(ctx)
-    env = {**os.environ, **sidecar_env(ctx)}
-    argv = [str(exe), "pair"] + (["--phone", phone] if phone else [])
-    raise SystemExit(subprocess.run(argv, env=env, check=False).returncode)
+    # Real Telegram login (SMS code, no QR) lands with the Phase 2 sidecar.
+    print("Telegram pairing (SMS login of the bot account) lands with the Phase 2 sidecar.")
+    print("For now, exercise the plugin layer with:  hermes telegram-voice serve --stub")
+    raise SystemExit(0)
 
 
-def _serve(ctx) -> None:
+def _serve(ctx, stub: bool = False) -> None:
+    if stub:
+        from . import sidecar_stub
+        from .sidecar_client import token
+
+        sidecar_stub.serve(str(settings(ctx)["listen"]), token(create=True))
+        return
     exe = _require_ready(ctx)
     env = {**os.environ, **sidecar_env(ctx)}
     os.execve(str(exe), [str(exe), "serve"], env)
@@ -93,14 +99,14 @@ def _service() -> None:
     log = data_dir() / "sidecar.log"
     if platform.system() == "Darwin":
         print(f"""<?xml version="1.0" encoding="UTF-8"?>
-<!-- Save as ~/Library/LaunchAgents/com.hermes.whatsapp-voice.plist, then:
-     launchctl load -w ~/Library/LaunchAgents/com.hermes.whatsapp-voice.plist -->
+<!-- Save as ~/Library/LaunchAgents/com.hermes.telegram-voice.plist, then:
+     launchctl load -w ~/Library/LaunchAgents/com.hermes.telegram-voice.plist -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>com.hermes.whatsapp-voice</string>
+  <key>Label</key><string>com.hermes.telegram-voice</string>
   <key>ProgramArguments</key>
-  <array><string>{hermes}</string><string>whatsapp-voice</string><string>serve</string></array>
+  <array><string>{hermes}</string><string>telegram-voice</string><string>serve</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>StandardOutPath</key><string>{log}</string>
@@ -108,15 +114,15 @@ def _service() -> None:
 </dict>
 </plist>""")
     else:
-        print(f"""# Save as ~/.config/systemd/user/hermes-whatsapp-voice.service, then:
-#   systemctl --user daemon-reload && systemctl --user enable --now hermes-whatsapp-voice
+        print(f"""# Save as ~/.config/systemd/user/hermes-telegram-voice.service, then:
+#   systemctl --user daemon-reload && systemctl --user enable --now hermes-telegram-voice
 #   loginctl enable-linger $USER   # keep it running while logged out
 [Unit]
-Description=Hermes WhatsApp voice sidecar
+Description=Hermes Telegram voice sidecar
 After=network-online.target
 
 [Service]
-ExecStart={hermes} whatsapp-voice serve
+ExecStart={hermes} telegram-voice serve
 Restart=on-failure
 RestartSec=10
 
@@ -142,9 +148,10 @@ def setup_parser(subparser) -> None:
     subs = subparser.add_subparsers(dest="wv_command")
     install = subs.add_parser("install", help="Install the sidecar binary (release download, or build with Rust)")
     install.add_argument("--from-source", action="store_true", help="Build with the local Rust toolchain")
-    pair = subs.add_parser("pair", help="Link the sidecar to your bot's WhatsApp number (shows a QR code)")
-    pair.add_argument("--phone", help="Bot's phone number, to link with a pair code instead of a QR code")
-    subs.add_parser("serve", help="Run the sidecar in the foreground")
+    pair = subs.add_parser("pair", help="Log the sidecar into the bot's Telegram account via SMS code (Phase 2)")
+    pair.add_argument("--phone", help="The bot account's phone number")
+    serve = subs.add_parser("serve", help="Run the sidecar in the foreground")
+    serve.add_argument("--stub", action="store_true", help="Run the placeholder sidecar (no real calls yet; plugin-layer testing)")
     subs.add_parser("service", help="Print a systemd/launchd unit that keeps the sidecar running")
     subs.add_parser("status", help="Show sidecar health")
     call = subs.add_parser("call", help="Place a test call to the owner")
@@ -159,7 +166,7 @@ def make_handler(ctx):
         elif cmd == "pair":
             _pair(ctx, args.phone)
         elif cmd == "serve":
-            _serve(ctx)
+            _serve(ctx, getattr(args, "stub", False))
         elif cmd == "service":
             _service()
         elif cmd == "status":
@@ -167,6 +174,6 @@ def make_handler(ctx):
         elif cmd == "call":
             _call(ctx, args.reason)
         else:
-            print("Usage: hermes whatsapp-voice {install,pair,serve,service,status,call}", file=sys.stderr)
+            print("Usage: hermes telegram-voice {install,pair,serve,service,status,call}", file=sys.stderr)
 
     return handle

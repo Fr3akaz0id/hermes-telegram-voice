@@ -1,4 +1,4 @@
-/* WhatsApp Voice tab. Prefixed classes and the dashboard's theme variables only, so it follows the
+/* Telegram Voice tab. Prefixed classes and the dashboard's theme variables only, so it follows the
    active theme and never depends on utility classes the dashboard build may not include. */
 .hwv-page { display: flex; flex-direction: column; gap: 1.25rem; padding: 1.5rem; width: 100%; box-sizing: border-box; }
 

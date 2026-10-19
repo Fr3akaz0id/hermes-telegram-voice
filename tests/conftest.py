@@ -47,15 +47,15 @@ def _stub_hermes_modules(data_root: Path) -> None:
 def plugin(tmp_path):
     _stub_hermes_modules(tmp_path)
     spec = importlib.util.spec_from_file_location(
-        "hermes_whatsapp_voice", ROOT / "__init__.py", submodule_search_locations=[str(ROOT)]
+        "hermes_telegram_voice", ROOT / "__init__.py", submodule_search_locations=[str(ROOT)]
     )
     module = importlib.util.module_from_spec(spec)
-    sys.modules["hermes_whatsapp_voice"] = module
+    sys.modules["hermes_telegram_voice"] = module
     spec.loader.exec_module(module)
     for sub in ("sidecar_client", "tools", "cli"):
-        importlib.import_module(f"hermes_whatsapp_voice.{sub}")
+        importlib.import_module(f"hermes_telegram_voice.{sub}")
     yield module
-    for name in [n for n in sys.modules if n.startswith("hermes_whatsapp_voice")]:
+    for name in [n for n in sys.modules if n.startswith("hermes_telegram_voice")]:
         del sys.modules[name]
 
 

@@ -1,48 +1,59 @@
-# hermes-whatsapp-voice
+# hermes-telegram-voice
 
-Live voice calls with [Hermes](https://github.com/NousResearch/hermes-agent) over WhatsApp.
+> **Port in progress.** This is a Telegram port of
+> [hermes-whatsapp-voice](https://github.com/ashwanthbalakrishnan5/hermes-whatsapp-voice). The
+> plugin layer (tools, CLI, dashboard tab) works and is tested against a stub sidecar; the real
+> call transport (Telethon + ntgcalls, user-account SMS login) lands in Phase 2 — see
+> [PLAN.md](PLAN.md). Until then: `hermes telegram-voice serve --stub`.
 
-- **Call your bot.** Call your Hermes bot's WhatsApp number and talk to it. The voice agent can hand
+Live voice calls with [Hermes](https://github.com/NousResearch/hermes-agent) over Telegram.
+
+- **Call your bot.** Call your Hermes bot's Telegram number and talk to it. The voice agent can hand
   real work to Hermes mid-call ("move my 3pm to tomorrow", "what did Sam say about the invoice?").
 - **Let Hermes call you.** For things that matter, Hermes can ring you instead of sending a message:
   a top-priority reminder, an urgent alert, a cron job that needs a decision. If you don't pick up,
   the tool says so and Hermes falls back to another channel.
 - **Summary afterwards.** When a call ends, Hermes digests the transcript and sends you a short
-  summary in WhatsApp.
+  summary in Telegram.
+- **Local speech option.** Besides Gemini Live (cloud speech-to-speech), the sidecar runs a fully
+  local pipeline: VAD → Whisper STT → Hermes → Piper TTS, no cloud in the audio path.
 
-It works with the personal-number setup most Hermes users already have (WhatsApp linked as a
-device). No WhatsApp Business / Cloud API account is needed.
+Unlike WhatsApp's linked-device model, Telegram voice calls require a **real user account** — bots
+cannot make or receive calls. The bot runs on a spare Telegram account you log in once via SMS.
 
 ## How it works
 
 ```
- your phone ──WhatsApp call──▶ bot number ──▶ hermes-wa-voice (linked device, Rust)
-                                                 │  call audio (16 kHz in, 24 kHz out, resampled)
+ your phone ──Telegram call──▶ bot account ──▶ hermes-tg-voice sidecar (Python: Telethon + ntgcalls)
+                                                 │  call audio (48 kHz PCM, WebRTC/SRTP, resampled)
                                                  ▼
-                                            Gemini Live (speech-to-speech)
+                                          SpeechBus — live or local
+                                            live: Gemini Live (speech-to-speech)
+                                            local: VAD → Whisper STT → Hermes → Piper TTS
                                                  │  ask_hermes(...) tool calls
                                                  ▼
                                             Hermes API server (/v1/runs)
 ```
 
-- **`hermes-wa-voice`** is a small sidecar built on
-  [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust). It links to the bot's WhatsApp number
-  as one more linked device (WhatsApp allows four), answers calls from your number only, and places
-  calls to your number only.
+- **The sidecar** (Phase 2) logs in as a **Telegram user account** (MTProto via
+  [Telethon](https://github.com/LonamiWebs/Telethon) for call signaling,
+  [ntgcalls](https://github.com/LonamiWebs/ntgcalls) for the WebRTC/SRTP audio stream) and
+  auto-answers calls from your number only. It answers nothing else and never calls third parties.
 - Call audio is bridged to **Gemini Live** (`gemini-3.8-live` by default) for natural, interruptible
   speech-to-speech.
 - The voice model gets two tools:
   - `ask_hermes`, which runs a Hermes turn through the API server and speaks the result when it
     arrives;
   - `end_call`, which hangs up after a goodbye.
-- The **Hermes plugin** adds two agent tools: `whatsapp_call_owner(reason, details?)` and
-  `whatsapp_call_status(call_id?)`. It also adds a `hermes whatsapp-voice` command for setup.
+- The **Hermes plugin** adds two agent tools: `telegram_call_owner(reason, details?)` and
+  `telegram_call_status(call_id?)`. It also adds a `hermes telegram-voice` command for setup.
 
 ## Requirements
 
 - Hermes `>= 0.21.5` on Linux or macOS.
-- A separate WhatsApp number for the bot: Hermes's WhatsApp `bot` mode, or any spare number. In
-  `self-chat` mode the bot is your own number, and you can't call yourself.
+- A **spare Telegram account** (not your main one): phone number, plus `api_id`/`api_hash` from
+  [my.telegram.org/apps](https://my.telegram.org/apps). Bots cannot carry calls; you call the bot
+  account as an ordinary user. Auto-answering a main account risks flags — use a throwaway.
 - Gemini set up in Hermes with an API key. The plugin reuses the key of Hermes's Gemini provider
   (`GOOGLE_API_KEY`, else `GEMINI_API_KEY`), so there is nothing extra to enter. Without one,
   `hermes model` (choose Gemini) adds it. Google login (Cloud Code OAuth) does not work for the
@@ -56,13 +67,13 @@ device). No WhatsApp Business / Cloud API account is needed.
 
 **Let your agent do it.** Tell Hermes (or any coding agent on that machine) to follow
 [skills/setup/SKILL.md](skills/setup/SKILL.md). It's a step-by-step runbook written for agents,
-and it stops to ask you only for your number and to scan a QR code. After installing, Hermes can
-also load it as `hermes-whatsapp-voice:setup`.
+and it stops to ask you only for the account's number and the SMS login code. After installing,
+Hermes can also load it as `hermes-telegram-voice:setup`.
 
 **Or by hand:**
 
 ```bash
-hermes plugins install ashwanthbalakrishnan5/hermes-whatsapp-voice --enable
+hermes plugins install Fr3akaz0id/hermes-telegram-voice --enable
 ```
 
 ### 1. Set your number
@@ -70,32 +81,23 @@ hermes plugins install ashwanthbalakrishnan5/hermes-whatsapp-voice --enable
 This is the only number that will ever be called, and the only caller that will be answered.
 
 ```bash
-hermes config set plugins.entries.hermes-whatsapp-voice.settings.owner_number +15551234567
+hermes config set plugins.entries.hermes-telegram-voice.settings.owner_number +15551234567
 ```
 
-### 2. Link the sidecar to the bot's WhatsApp number (once)
-
-Easiest: open the Hermes dashboard, go to the **WhatsApp Voice** tab, click **Pair with
-WhatsApp**, and scan the QR from the **bot's** phone (WhatsApp > Linked devices > Link a device).
-From a terminal instead:
+### 2. Log the sidecar into the bot's Telegram account (once)
 
 ```bash
-hermes whatsapp-voice pair                        # shows a QR code
-hermes whatsapp-voice pair --phone +15550001111   # the BOT's number; prints a pair code
+hermes telegram-voice pair --phone +155****1111   # Phase 2: prints an SMS login prompt
 ```
 
-The first run also fetches the sidecar binary for your platform from this repo's GitHub release.
-You don't need Rust or any other toolchain. The download is checked against checksums pinned in
-this repo (`sidecar/release-checksums.txt`). If the GitHub CLI is installed, its GitHub build attestation is checked too, which
-proves it was built from this repository by its release workflow. Prebuilt binaries cover linux
-amd64/arm64 and macOS arm64. To build it yourself instead (Rust 1.94+, cmake, a C compiler), run
-`hermes whatsapp-voice install --from-source`.
+The first run fetches the sidecar from this repo's GitHub release and stores the account session
+in the plugin's private data directory (mode 700). Until the Phase 2 transport lands, `pair`
+prints a placeholder and `hermes telegram-voice serve --stub` runs the stub sidecar so you can
+exercise the plugin layer.
 
-> **Why a separate link when Hermes is already logged in to WhatsApp?** WhatsApp lets each linked
-> device keep only one live connection. Sharing Hermes's WhatsApp session would make the two
-> connections knock each other offline, and Hermes's messaging would break. Only the bot's phone
-> can approve a new device, so the link happens once. It uses one of WhatsApp's four linked-device
-> slots.
+> **Why a separate account?** Telegram calls ride on a user (MTProto) session — a Bot-API token
+> cannot carry calls at all, and running the sidecar on your main account would put it in
+> auto-answer/automation territory that Telegram flags. Use a spare number.
 
 ### 3. Enable the Hermes API server (recommended)
 
@@ -110,16 +112,16 @@ Restart the gateway after this.
 ### 4. Run the sidecar
 
 ```bash
-hermes whatsapp-voice serve      # foreground, to try it out
-hermes whatsapp-voice service    # prints a systemd user unit (Linux) or launchd plist (macOS)
+hermes telegram-voice serve      # foreground, to try it out
+hermes telegram-voice service    # prints a systemd user unit (Linux) or launchd plist (macOS)
 ```
 
 To keep it running, save the printed unit and enable it as the comments in it describe. Check it
 with:
 
 ```bash
-hermes whatsapp-voice status
-hermes whatsapp-voice call "Testing the new voice line"
+hermes telegram-voice status
+hermes telegram-voice call "Testing the new voice line"
 ```
 
 ## Using it
@@ -128,11 +130,11 @@ Call your bot's number from your phone. Or ask Hermes to call you:
 
 > Call me at 7:30 tomorrow about the flight check-in, and if I don't answer, set an urgent reminder.
 
-`whatsapp_call_owner` works from cron runs too, so a scheduled job can escalate to a phone call:
+`telegram_call_owner` works from cron runs too, so a scheduled job can escalate to a phone call:
 
 ```bash
 hermes cron create "0 9 * * 1-5" \
-  "If anything on my calendar today is marked urgent, call me about it with whatsapp_call_owner."
+  "If anything on my calendar today is marked urgent, call me about it with telegram_call_owner."
 ```
 
 The tool waits until the call is answered, declined or unanswered, and returns that status. On
@@ -140,7 +142,7 @@ The tool waits until the call is answered, declined or unanswered, and returns t
 
 ## Configure
 
-Everything is configurable from the **WhatsApp Voice** tab in the Hermes dashboard, the Desktop
+Everything is configurable from the **Telegram Voice** tab in the Hermes dashboard, the Desktop
 app's plugin settings, or `hermes config set`. That covers the voice, the model, your own
 instructions (language, tone, call length), and any Gemini Live option via `live_config`. The
 voice takes its name and personality from your own Hermes. Full reference:
@@ -151,12 +153,12 @@ voice takes its name and personality from your own Hermes. Full reference:
 - **Long-running process.** The sidecar runs as a separate process that you start (`serve`, or the
   systemd/launchd unit). The plugin itself only talks to it over loopback HTTP, authenticated with a
   random token stored in the plugin's data directory.
-- **Stored credentials.** The sidecar's WhatsApp linked-device session is stored at
-  `<hermes home>/plugin-data/hermes-whatsapp-voice/whatsapp.db` (the folder is private, mode 700).
-  Anyone with that file can act as that linked device. Unlink it any time from the bot's phone
-  (Linked devices).
+- **Stored credentials.** The sidecar's Telegram user-account session (MTProto auth key) is stored
+  at `<hermes home>/plugin-data/hermes-telegram-voice/telegram.session` (the folder is private, mode
+  700). Anyone with that file can act as that account — treat it like a password. Revoke the session
+  any time from the account's phone (Settings › Devices › terminate session).
 - **Network calls.**
-  - WhatsApp servers (signaling and call media relays).
+  - Telegram servers (signaling and call media relays).
   - `generativelanguage.googleapis.com` (Gemini), using the Gemini key Hermes already has. It
     receives call audio during calls, plus, as text: the persona briefing (Hermes's name,
     personality and what it knows about you), the reason and details of an outgoing call, and the
@@ -185,8 +187,8 @@ voice takes its name and personality from your own Hermes. Full reference:
 
 ## Caveats
 
-- WhatsApp calling here uses an **unofficial**, reverse-engineered protocol (via whatsapp-rust).
-  WhatsApp updates can break it, and automated use may violate WhatsApp's Terms of Service. Use a
+- Telegram calling here uses an **unofficial**, reverse-engineered protocol (via telegram-rust).
+  Telegram updates can break it, and automated use may violate Telegram's Terms of Service. Use a
   number you can afford to lose.
 - One call at a time. Group calls and video are not supported.
 - A Gemini Live connection lasts about 10 minutes. The sidecar resumes the session transparently, but
@@ -209,7 +211,7 @@ with the tag.
 
 ## Credits
 
-- [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust) (MIT) does the WhatsApp protocol and the
+- [telegram-rust](https://github.com/oxidezap/telegram-rust) (MIT) does the Telegram protocol and the
   call media work.
 - Gemini Live provides the voice.
 

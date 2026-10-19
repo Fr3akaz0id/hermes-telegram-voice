@@ -1,4 +1,4 @@
-"""Dashboard backend for the WhatsApp Voice tab, mounted at /api/plugins/hermes-whatsapp-voice/.
+"""Dashboard backend for the Telegram Voice tab, mounted at /api/plugins/hermes-telegram-voice/.
 
 Runs inside the Hermes dashboard process, behind its auth. Settings are written through the public
 `hermes config set` CLI, so the dashboard, the Desktop app and the CLI stay in sync.
@@ -19,13 +19,13 @@ from fastapi import APIRouter, HTTPException
 from hermes_yaml import safe_load
 
 PLUGIN_DIR = Path(__file__).resolve().parent.parent
-PLUGIN_ID = "hermes-whatsapp-voice"
-SERVICE = "hermes-whatsapp-voice"
+PLUGIN_ID = "hermes-telegram-voice"
+SERVICE = "hermes-telegram-voice"
 
 
 def _load_sidecar_client():
     # The dashboard loads this file on its own, outside the plugin package; reuse the plugin's module.
-    spec = importlib.util.spec_from_file_location("hwv_sidecar_client", PLUGIN_DIR / "sidecar_client.py")
+    spec = importlib.util.spec_from_file_location("htv_sidecar_client", PLUGIN_DIR / "sidecar_client.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -142,9 +142,9 @@ def restart():
     if platform.system() == "Linux" and shutil.which("systemctl"):
         cmd = ["systemctl", "--user", "restart", SERVICE]
     elif platform.system() == "Darwin":
-        cmd = ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/com.hermes.whatsapp-voice"]
+        cmd = ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/com.hermes.telegram-voice"]
     else:
-        raise HTTPException(501, "No service manager found; restart `hermes whatsapp-voice serve` yourself.")
+        raise HTTPException(501, "No service manager found; restart `hermes telegram-voice serve` yourself.")
     done = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
     if done.returncode != 0:
         raise HTTPException(500, f"restart failed: {done.stderr.strip() or done.stdout.strip()}")
@@ -183,7 +183,7 @@ def pair_start():
     log = open(data / "pair.log", "w")  # noqa: SIM115 - handed to the child process
     _pair_proc = subprocess.Popen(
         [str(exe), "pair"],
-        env={**os.environ, "HWV_DATA_DIR": str(data)},
+        env={**os.environ, "HTV_DATA_DIR": str(data)},
         stdout=log,
         stderr=subprocess.STDOUT,
         stdin=subprocess.DEVNULL,

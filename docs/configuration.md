@@ -1,13 +1,13 @@
 # Configuration
 
 There are three places to change settings, and all of them write the same values:
-- the **WhatsApp Voice** tab in the Hermes web dashboard;
+- the **Telegram Voice** tab in the Hermes web dashboard;
 - the plugin's settings page in the Hermes Desktop app (Settings > Plugins);
-- the command line: `hermes config set plugins.entries.hermes-whatsapp-voice.settings.<key> <value>`.
+- the command line: `hermes config set plugins.entries.hermes-telegram-voice.settings.<key> <value>`.
 
 Restart the sidecar after a change: the dashboard's **Restart sidecar** button, or
-`systemctl --user restart hermes-whatsapp-voice` (Linux), or
-`launchctl kickstart -k gui/$(id -u)/com.hermes.whatsapp-voice` (macOS).
+`systemctl --user restart hermes-telegram-voice` (Linux), or
+`launchctl kickstart -k gui/$(id -u)/com.hermes.telegram-voice` (macOS).
 
 ## Settings
 
@@ -37,7 +37,7 @@ let the caller pause longer:
 # ~/.hermes/config.yaml
 plugins:
   entries:
-    hermes-whatsapp-voice:
+    hermes-telegram-voice:
       settings:
         live_config:
           generationConfig:
@@ -66,7 +66,7 @@ you. The voice then sounds like your Hermes, and changes to Hermes's memory carr
 `voice_instructions` for anything else, for example:
 
 ```bash
-hermes config set plugins.entries.hermes-whatsapp-voice.settings.voice_instructions \
+hermes config set plugins.entries.hermes-telegram-voice.settings.voice_instructions \
   "Keep calls very short and direct. Never ask if there is anything else."
 ```
 

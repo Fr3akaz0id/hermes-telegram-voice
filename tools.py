@@ -8,9 +8,9 @@ import time
 from .sidecar_client import Client, SidecarError, settings
 
 CALL_OWNER = {
-    "name": "whatsapp_call_owner",
+    "name": "telegram_call_owner",
     "description": (
-        "Place a live WhatsApp voice call to the owner. A voice agent with access to Hermes "
+        "Place a live Telegram voice call to the owner. A voice agent with access to Hermes "
         "talks with them in real time. It always calls the owner's own number; there is no "
         "way to call anyone else. Use it for things that are important or time-sensitive "
         "enough to interrupt the owner, such as a top-priority reminder, an urgent alert, or "
@@ -35,15 +35,15 @@ CALL_OWNER = {
 }
 
 CALL_STATUS = {
-    "name": "whatsapp_call_status",
+    "name": "telegram_call_status",
     "description": (
-        "Get the status and transcript of a WhatsApp voice call. Pass the call_id that "
-        "whatsapp_call_owner returned. Leave it out to list the most recent calls."
+        "Get the status and transcript of a Telegram voice call. Pass the call_id that "
+        "telegram_call_owner returned. Leave it out to list the most recent calls."
     ),
     "parameters": {
         "type": "object",
         "properties": {
-            "call_id": {"type": "string", "description": "Call id from whatsapp_call_owner"},
+            "call_id": {"type": "string", "description": "Call id from telegram_call_owner"},
         },
     },
 }
@@ -80,7 +80,7 @@ def make_handlers(ctx):
         if status == "in_progress":
             out["note"] = (
                 "The owner answered and is talking with the voice agent now. A summary is "
-                "sent to WhatsApp when the call ends; use whatsapp_call_status for the transcript."
+                "sent to Telegram when the call ends; use telegram_call_status for the transcript."
             )
         elif status == "completed":
             out["transcript"] = call.get("transcript", [])
@@ -90,7 +90,7 @@ def make_handlers(ctx):
             out["error"] = call.get("end_reason", "call failed")
             out["note"] = _FALLBACK_HINT
         else:
-            out["note"] = "Still ringing past the timeout; check again with whatsapp_call_status."
+            out["note"] = "Still ringing past the timeout; check again with telegram_call_status."
         return _result(**out)
 
     def call_status(args: dict, **kwargs) -> str:
